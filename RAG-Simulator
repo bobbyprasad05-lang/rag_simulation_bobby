@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Concept Simulator</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #10b981;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 { text-align: center; color: var(--primary); }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h3 { margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.9; }
+
+        .vector-db-list {
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        .chunk-pill {
+            background: white;
+            padding: 5px 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .step-box {
+            margin-top: 15px;
+            padding: 10px;
+            background: #eff6ff;
+            border-radius: 8px;
+            border: 1px solid #dbeafe;
+            font-size: 0.9rem;
+        }
+
+        .label { font-weight: bold; color: var(--primary); display: block; margin-bottom: 4px; }
+        .highlight { color: var(--secondary); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚀 RAG Simulator</h1>
+    
+    <div class="grid">
+        <!-- PHASE 1: INDEXING -->
+        <div class="card">
+            <h3>1. Prep Phase (Indexing) 📁</h3>
+            <p>Paste a document to "chunk" it into the Vector DB.</p>
+            <textarea id="docInput" rows="4" placeholder="Example: The sky is blue because of Rayleigh scattering. Grass is green due to chlorophyll.">The solar system has eight planets. Jupiter is the largest planet. Mars is known as the Red Planet.</textarea>
+            <button onclick="indexDocument()">Chunk & Embed</button>
+            
+            <p><strong>Vector Database Storage:</strong></p>
+            <div id="vectorDb" class="vector-db-list">
+                <em>No data indexed yet...</em>
+            </div>
+        </div>
+
+        <!-- PHASE 2, 3, 4: THE QUERY FLOW -->
+        <div class="card">
+            <h3>User Query 💬</h3>
+            <input type="text" id="userQuery" placeholder="e.g., Which is the largest planet?">
+            <button onclick="runRAG()" style="background: var(--secondary);">Run RAG Pipeline</button>
+
+            <div id="outputArea" style="display:none;">
+                <div class="step-box">
+                    <span class="label">🔍 2. Retrieval:</span>
+                    <div id="retrievalOutput"></div>
+                </div>
+
+                <div class="step-box">
+                    <span class="label">🏗️ 3. Augmentation:</span>
+                    <div id="augmentationOutput" style="font-style: italic; color: #64748b;"></div>
+                </div>
+
+                <div class="step-box" style="background: #ecfdf5;">
+                    <span class="label">🤖 4. Generation:</span>
+                    <div id="generationOutput" style="font-weight: 500;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let vectorDatabase = [];
+
+    // --- STEP 1: INDEXING ---
+    function indexDocument() {
+        const text = document.getElementById('docInput').value;
+        // Simple chunking logic: split by period
+        const chunks = text.split('.').filter(t => t.trim().length > 0);
+        
+        vectorDatabase = chunks.map(chunk => ({
+            text: chunk.trim() + ".",
+            embedding: chunk.toLowerCase() // Simple "mock" embedding using lowercased text
+        }));
+
+        renderDB();
+    }
+
+    function renderDB() {
+        const dbList = document.getElementById('vectorDb');
+        dbList.innerHTML = vectorDatabase.map(item => `
+            <div class="chunk-pill">
+                <strong>Chunk:</strong> ${item.text}<br>
+                <small style="color: #64748b;">[Vector Embedding Created]</small>
+            </div>
+        `).join('') || "<em>Empty DB</em>";
+    }
+
+    // --- STEPS 2, 3, & 4: RAG PROCESS ---
+    function runRAG() {
+        const query = document.getElementById('userQuery').value.trim();
+        if (!query || vectorDatabase.length === 0) {
+            alert("Please index a document and enter a query first!");
+            return;
+        }
+
+        document.getElementById('outputArea').style.display = 'block';
+
+        // 2. RETRIEVAL (Mock Semantic Search)
+        // We look for chunks that contain words from the query
+        const queryWords = query.toLowerCase().split(' ');
+        let bestMatch = vectorDatabase[0];
+        let maxOverlap = -1;
+
+        vectorDatabase.forEach(item => {
+            let overlap = queryWords.filter(word => item.embedding.includes(word)).length;
+            if (overlap > maxOverlap) {
+                maxOverlap = overlap;
+                bestMatch = item;
+            }
+        });
+
+        document.getElementById('retrievalOutput').innerHTML = 
+            `Found relevant chunk: <span class="highlight">"${bestMatch.text}"</span>`;
+
+        // 3. AUGMENTATION
+        const augmentedPrompt = `Context: ${bestMatch.text}\nQuestion: ${query}\nAnswer the question using ONLY the context provided.`;
+        document.getElementById('augmentationOutput').innerText = augmentedPrompt;
+
+        // 4. GENERATION (Mock LLM response)
+        // In a real app, this goes to an API. Here, we simulate the LLM's logic.
+        setTimeout(() => {
+            document.getElementById('generationOutput').innerText = 
+                `Based on the context provided, ${bestMatch.text}`;
+        }, 500);
+    }
+</script>
+
+</body>
+</html>
