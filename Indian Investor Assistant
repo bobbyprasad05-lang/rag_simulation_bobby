@@ -1,335 +1,44 @@
+import yfinance as yf
+import pandas as pd
 
-<style>
-h2.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:var(--font-sans);}
-.wrap{padding:1.5rem 0 2rem;}
-.header{display:flex;align-items:center;gap:12px;margin-bottom:1.75rem;}
-.logo{width:40px;height:40px;border-radius:var(--border-radius-md);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;}
-.title-block{}
-.title-block h1{font-size:18px;font-weight:500;color:var(--color-text-primary);}
-.title-block p{font-size:13px;color:var(--color-text-secondary);margin-top:2px;}
-.input-row{display:flex;gap:10px;margin-bottom:0.75rem;}
-.input-row input{flex:1;font-size:14px;}
-.input-row select{font-size:14px;width:110px;}
-.input-row button{font-size:14px;white-space:nowrap;}
-.hint{font-size:12px;color:var(--color-text-tertiary);margin-bottom:1.5rem;}
-.examples{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1.5rem;}
-.chip{font-size:12px;padding:4px 10px;border:0.5px solid var(--color-border-secondary);border-radius:20px;cursor:pointer;color:var(--color-text-secondary);background:transparent;transition:background .15s;}
-.chip:hover{background:var(--color-background-secondary);}
-.divider{border:none;border-top:0.5px solid var(--color-border-tertiary);margin:1.25rem 0;}
-.loading{display:flex;align-items:center;gap:10px;color:var(--color-text-secondary);font-size:14px;padding:2rem 0;}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--color-text-tertiary);animation:pulse 1.2s ease-in-out infinite;}
-.dot:nth-child(2){animation-delay:.2s;}
-.dot:nth-child(3){animation-delay:.4s;}
-@keyframes pulse{0%,80%,100%{opacity:.2;}40%{opacity:1;}}
-.report{}
-.section{margin-bottom:1.5rem;}
-.section-label{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--color-text-tertiary);margin-bottom:8px;}
-.section-body{font-size:14px;color:var(--color-text-primary);line-height:1.75;}
-.section-body p{margin-bottom:.6rem;}
-.section-body strong{font-weight:500;}
-.badge-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;}
-.badge{font-size:12px;padding:3px 10px;border-radius:20px;font-weight:500;}
-.badge.bull{background:#EAF3DE;color:#3B6D11;}
-.badge.bear{background:#FCEBEB;color:#A32D2D;}
-.badge.neutral{background:#F1EFE8;color:#5F5E5A;}
-.badge.warn{background:#FAEEDA;color:#854F0B;}
-.badge.info{background:#E6F1FB;color:#185FA5;}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:10px 0;}
-.card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px;border:0.5px solid var(--color-border-tertiary);}
-.card .lbl{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px;}
-.card .val{font-size:16px;font-weight:500;color:var(--color-text-primary);}
-.card .sub{font-size:11px;color:var(--color-text-tertiary);margin-top:2px;}
-.horizon{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:10px 0;}
-.hcard{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px;}
-.hcard .ht{font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:6px;}
-.hcard .hb{font-size:13px;color:var(--color-text-primary);line-height:1.6;}
-.risk-list{list-style:none;padding:0;}
-.risk-list li{font-size:13px;color:var(--color-text-primary);padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary);line-height:1.6;}
-.risk-list li:last-child{border-bottom:none;}
-.disclaimer{font-size:11px;color:var(--color-text-tertiary);margin-top:1.5rem;padding:10px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);line-height:1.6;}
-.error-msg{color:var(--color-text-danger);font-size:14px;padding:1rem 0;}
-</style>
+def analyze_indian_stock(ticker):
+    # Add .NS for National Stock Exchange (India)
+    stock = yf.Ticker(f"{ticker}.NS")
+    info = stock.info
+    hist = stock.history(period="1y")
+    
+    print(f"--- 🛡️ Guardrail Analysis: {info.get('longName', ticker)} ---")
+    
+    # 1. Fundamental Health
+    pe = info.get('trailingPE', 'N/A')
+    debt_equity = info.get('debtToEquity', 0) / 100 # Convert to ratio
+    
+    print(f"## Fundamental Health")
+    print(f"✅ P/E Ratio: {pe} (Check industry average: {info.get('sector', 'N/A')})")
+    print(f"✅ Debt/Equity: {debt_equity:.2f} {'(SAFE < 1)' if debt_equity < 1 else '(RISKY > 1)'}")
 
-<h2 class="sr-only">Gem Analyser — Indian market stock analysis tool powered by AI</h2>
-<div class="wrap">
-  <div class="header">
-    <div class="logo"><i class="ti ti-diamond" style="font-size:20px;color:var(--color-text-secondary);" aria-hidden="true"></i></div>
-    <div class="title-block">
-      <h1>Gem Analyser</h1>
-      <p>Indian Market · Beginner to Intermediate · NSE / BSE</p>
-    </div>
-  </div>
+    # 2. Technical Vitals
+    current_price = hist['Close'].iloc[-1]
+    sma_200 = hist['Close'].rolling(window=200).mean().iloc[-1]
+    
+    # Simple RSI calculation (14 periods)
+    delta = hist['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs.iloc[-1]))
 
-  <div class="input-row">
-    <input type="text" id="ticker" placeholder="Enter ticker, e.g. RELIANCE, HDFCBANK, NIFTY50…" />
-    <select id="exchange">
-      <option value="NSE">NSE</option>
-      <option value="BSE">BSE</option>
-      <option value="INDEX">Index</option>
-      <option value="ETF">ETF</option>
-    </select>
-    <button id="analyseBtn" onclick="runAnalysis()">Analyse ↗</button>
-  </div>
-  <p class="hint">Try any large-cap, mid-cap, sector ETF, or index. AI will generate a full deep-dive report.</p>
+    print(f"\n## Technical Vitals")
+    print(f"📊 Current Price: ₹{current_price:.2f}")
+    print(f"📊 200-Day Average: ₹{sma_200:.2f}")
+    print(f"🚦 Trend: {'🟢 BULLISH (Above 200-day)' if current_price > sma_200 else '🔴 BEARISH (Below 200-day)'}")
+    print(f"⚡ RSI: {rsi:.2f} ({'Overbought' if rsi > 70 else 'Oversold' if rsi < 30 else 'Neutral'})")
 
-  <div class="examples">
-    <span class="chip" onclick="prefill('RELIANCE','NSE')">RELIANCE</span>
-    <span class="chip" onclick="prefill('HDFCBANK','NSE')">HDFCBANK</span>
-    <span class="chip" onclick="prefill('INFY','NSE')">INFY</span>
-    <span class="chip" onclick="prefill('TATAPOWER','NSE')">TATAPOWER</span>
-    <span class="chip" onclick="prefill('NIFTY50','INDEX')">NIFTY 50</span>
-    <span class="chip" onclick="prefill('GOLDBEES','ETF')">GOLDBEES ETF</span>
-    <span class="chip" onclick="prefill('WIPRO','NSE')">WIPRO</span>
-    <span class="chip" onclick="prefill('IRFC','NSE')">IRFC</span>
-  </div>
+    # 3. Red Flags
+    print(f"\n## 🚩 Red Flags to Watch")
+    if debt_equity > 1.5: print("- High debt could crush profits.")
+    if pe != 'N/A' and pe > 50: print("- Stock might be overpriced (High P/E).")
+    if current_price < sma_200: print("- Stock is in a long-term downtrend.")
 
-  <div id="output"></div>
-</div>
-
-<script>
-function prefill(t,e){
-  document.getElementById('ticker').value=t;
-  document.getElementById('exchange').value=e;
-}
-
-async function runAnalysis(){
-  const ticker = document.getElementById('ticker').value.trim().toUpperCase();
-  const exchange = document.getElementById('exchange').value;
-  if(!ticker){document.getElementById('output').innerHTML='<p class="error-msg">Please enter a ticker symbol.</p>';return;}
-
-  const out = document.getElementById('output');
-  document.getElementById('analyseBtn').disabled=true;
-  out.innerHTML=`<hr class="divider"/><div class="loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div><span>Generating deep analysis for <strong>${ticker}</strong> · ${exchange}…</span></div>`;
-
-  const systemPrompt = `You are GemAnalyser, a deep research financial analyst specialised exclusively in the Indian stock market (NSE, BSE, indices, and ETFs). Your audience is beginner-to-intermediate Indian retail investors.
-
-YOUR MISSION: Provide a structured, honest, educational, and actionable analysis. Your goal is to help investors understand the investment, avoid losing money, and make informed decisions. Never hype or pump stocks. Always be balanced.
-
-CRITICAL FORMAT RULES — You MUST respond ONLY in valid JSON (no markdown fences, no extra text). The JSON schema is:
-{
-  "ticker": string,
-  "exchange": string,
-  "company_name": string,
-  "sector": string,
-  "sentiment": "BULLISH" | "BEARISH" | "NEUTRAL" | "CAUTIOUS",
-  "sentiment_reason": string (1-2 sentences),
-  "big_picture": {
-    "what_they_do": string (2-3 sentences, plain English, no jargon),
-    "market_position": string (1-2 sentences),
-    "india_context": string (1-2 sentences — why this matters for Indian economy/investor)
-  },
-  "fundamentals": {
-    "revenue_trend": string,
-    "profit_trend": string,
-    "pe_analysis": string,
-    "pe_level": "CHEAP" | "FAIR" | "EXPENSIVE" | "VERY_EXPENSIVE",
-    "debt_safety": string,
-    "debt_level": "SAFE" | "MODERATE" | "HIGH" | "DANGEROUS",
-    "moat": string,
-    "key_metrics": [
-      {"label": string, "value": string, "note": string}
-    ]
-  },
-  "technicals": {
-    "trend_summary": string,
-    "ma_status": "ABOVE_BOTH" | "BELOW_BOTH" | "MIXED",
-    "rsi_value": string,
-    "rsi_status": "OVERBOUGHT" | "NEUTRAL" | "OVERSOLD",
-    "volume_analysis": string,
-    "support_level": string,
-    "resistance_level": string
-  },
-  "horizons": {
-    "short_term": {"outlook": string, "action": string},
-    "mid_term": {"outlook": string, "action": string},
-    "long_term": {"outlook": string, "action": string}
-  },
-  "red_flags": [
-    {"title": string, "detail": string}
-  ],
-  "india_specific_risks": string,
-  "beginner_tip": string,
-  "final_verdict": string,
-  "confidence": "HIGH" | "MEDIUM" | "LOW",
-  "confidence_note": string
-}
-
-ANALYSIS GUIDELINES:
-1. Always think about SEBI regulations, FII/DII ownership patterns, promoter holding and pledging, GST/tax impact, RBI rate cycle effects, rupee depreciation risk.
-2. For PSU stocks: mention government stake, divestment risk, policy dependency.
-3. For IT stocks: mention USD-INR impact, deal wins, attrition.
-4. For banks: mention NPA levels, credit growth, net interest margin (NIM).
-5. For infra/capex stocks: mention order book health, working capital cycles.
-6. PE ratio: use Indian market benchmarks (Nifty50 trades at ~20-22x historically; compare accordingly).
-7. Always add a realistic support/resistance estimate based on known chart patterns.
-8. If the ticker is an INDEX or ETF, adapt the fundamentals section to discuss NAV, expense ratio, AUM, and tracking error instead of individual company metrics.
-9. Be honest about data limitations — if something is uncertain, say so.
-10. The beginner_tip should be one golden rule that protects capital.
-11. Keep language accessible: if you must use a term like "EBITDA" or "P/E" or "RSI", include a brief bracket explanation first time.
-12. For key_metrics, provide 4-5 realistic estimated/approximate metrics that are most relevant for the stock type.`;
-
-  const userPrompt = `Analyse this for an Indian retail investor: ${ticker} listed on ${exchange}. Provide complete, honest, actionable analysis following all guidelines. Return only valid JSON.`;
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        model:"claude-sonnet-4-20250514",
-        max_tokens:2000,
-        system: systemPrompt,
-        messages:[{role:"user",content:userPrompt}]
-      })
-    });
-    const data = await res.json();
-    const raw = data.content.map(c=>c.text||'').join('');
-    const clean = raw.replace(/```json|```/g,'').trim();
-    const d = JSON.parse(clean);
-    renderReport(d);
-  } catch(e) {
-    out.innerHTML='<hr class="divider"/><p class="error-msg"><i class="ti ti-alert-triangle" style="font-size:16px;vertical-align:-2px;margin-right:6px"></i>Analysis failed. Please try again or check the ticker symbol.</p>';
-  }
-  document.getElementById('analyseBtn').disabled=false;
-}
-
-function sentimentBadge(s){
-  const map={BULLISH:'bull',BEARISH:'bear',NEUTRAL:'neutral',CAUTIOUS:'warn'};
-  const emoji={BULLISH:'📈',BEARISH:'📉',NEUTRAL:'⚖️',CAUTIOUS:'⚠️'};
-  return `<span class="badge ${map[s]||'neutral'}">${emoji[s]||''} ${s}</span>`;
-}
-function levelBadge(v,pos,neg,mid){
-  if(v===pos) return `<span class="badge bull">${v}</span>`;
-  if(v===neg||v===neg+'2') return `<span class="badge bear">${v}</span>`;
-  return `<span class="badge warn">${v}</span>`;
-}
-function maBadge(v){
-  if(v==='ABOVE_BOTH') return '<span class="badge bull">Above 50 & 200 DMA</span>';
-  if(v==='BELOW_BOTH') return '<span class="badge bear">Below 50 & 200 DMA</span>';
-  return '<span class="badge warn">Mixed signals</span>';
-}
-function rsiBadge(s,v){
-  if(s==='OVERBOUGHT') return `<span class="badge bear">RSI ${v} — Overbought (&gt;70)</span>`;
-  if(s==='OVERSOLD') return `<span class="badge bull">RSI ${v} — Oversold (&lt;30)</span>`;
-  return `<span class="badge neutral">RSI ${v} — Neutral zone</span>`;
-}
-function confBadge(v){
-  const map={HIGH:'bull',MEDIUM:'warn',LOW:'bear'};
-  return `<span class="badge ${map[v]||'neutral'}">Confidence: ${v}</span>`;
-}
-
-function renderReport(d){
-  const html = `
-  <hr class="divider"/>
-  <div class="report">
-
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1.25rem;">
-      <div>
-        <div style="font-size:22px;font-weight:500;color:var(--color-text-primary);">${d.company_name}</div>
-        <div style="font-size:13px;color:var(--color-text-secondary);margin-top:3px;">${d.ticker} · ${d.exchange} · ${d.sector}</div>
-      </div>
-      <div class="badge-row" style="margin:0;">
-        ${sentimentBadge(d.sentiment)}
-        ${confBadge(d.confidence)}
-      </div>
-    </div>
-
-    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px;margin-bottom:1.5rem;border:0.5px solid var(--color-border-tertiary);">
-      <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:4px;">Market sentiment snapshot</div>
-      <div style="font-size:14px;color:var(--color-text-primary);">${d.sentiment_reason}</div>
-    </div>
-
-    <div class="section">
-      <div class="section-label">1 · The big picture</div>
-      <div class="section-body">
-        <p>${d.big_picture.what_they_do}</p>
-        <p>${d.big_picture.market_position}</p>
-        <p style="color:var(--color-text-secondary);">${d.big_picture.india_context}</p>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-label">2 · Fundamental health</div>
-      <div class="cards">
-        ${(d.fundamentals.key_metrics||[]).map(m=>`
-          <div class="card">
-            <div class="lbl">${m.label}</div>
-            <div class="val">${m.value}</div>
-            <div class="sub">${m.note}</div>
-          </div>`).join('')}
-      </div>
-      <div class="badge-row">
-        ${levelBadge(d.fundamentals.pe_level,'CHEAP','VERY_EXPENSIVE','')}
-        ${levelBadge(d.fundamentals.debt_level,'SAFE','DANGEROUS','')}
-      </div>
-      <div class="section-body">
-        <p><strong>Revenue & profit:</strong> ${d.fundamentals.revenue_trend}</p>
-        <p><strong>Profitability:</strong> ${d.fundamentals.profit_trend}</p>
-        <p><strong>Valuation:</strong> ${d.fundamentals.pe_analysis}</p>
-        <p><strong>Debt safety:</strong> ${d.fundamentals.debt_safety}</p>
-        <p><strong>Competitive moat:</strong> ${d.fundamentals.moat}</p>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-label">3 · Technical vitals</div>
-      <div class="badge-row">
-        ${maBadge(d.technicals.ma_status)}
-        ${rsiBadge(d.technicals.rsi_status, d.technicals.rsi_value)}
-      </div>
-      <div class="section-body">
-        <p>${d.technicals.trend_summary}</p>
-        <p><strong>Volume:</strong> ${d.technicals.volume_analysis}</p>
-        <p><strong>Support:</strong> ${d.technicals.support_level} &nbsp;·&nbsp; <strong>Resistance:</strong> ${d.technicals.resistance_level}</p>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-label">4 · Investment horizon</div>
-      <div class="horizon">
-        <div class="hcard">
-          <div class="ht">⚡ Short-term (Days–Weeks)</div>
-          <div class="hb">${d.horizons.short_term.outlook}</div>
-          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;">${d.horizons.short_term.action}</div>
-        </div>
-        <div class="hcard">
-          <div class="ht">📅 Mid-term (Months)</div>
-          <div class="hb">${d.horizons.mid_term.outlook}</div>
-          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;">${d.horizons.mid_term.action}</div>
-        </div>
-        <div class="hcard">
-          <div class="ht">🌱 Long-term (Years)</div>
-          <div class="hb">${d.horizons.long_term.outlook}</div>
-          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;">${d.horizons.long_term.action}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-label">5 · Red flags & risks</div>
-      <ul class="risk-list">
-        ${(d.red_flags||[]).map((r,i)=>`<li><strong>🚩 ${r.title}:</strong> ${r.detail}</li>`).join('')}
-        ${d.india_specific_risks?`<li><strong>🇮🇳 India-specific risk:</strong> ${d.india_specific_risks}</li>`:''}
-      </ul>
-    </div>
-
-    <div style="background:var(--color-background-secondary);border-left:3px solid var(--color-border-secondary);padding:12px 14px;border-radius:0 var(--border-radius-md) var(--border-radius-md) 0;margin-bottom:1.25rem;">
-      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;">Beginner's golden rule</div>
-      <div style="font-size:14px;color:var(--color-text-primary);">💡 ${d.beginner_tip}</div>
-    </div>
-
-    <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:14px;border:0.5px solid var(--color-border-tertiary);">
-      <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:6px;">Final verdict</div>
-      <div style="font-size:14px;color:var(--color-text-primary);line-height:1.7;">${d.final_verdict}</div>
-      <div style="margin-top:8px;font-size:11px;color:var(--color-text-tertiary);">${d.confidence_note}</div>
-    </div>
-
-    <div class="disclaimer">⚠️ <strong>Disclaimer:</strong> This analysis is AI-generated and for educational purposes only. It is NOT financial advice. Always do your own due diligence, consult a SEBI-registered investment advisor before investing, and never invest money you cannot afford to lose. Past performance does not guarantee future results.</div>
-
-  </div>`;
-  document.getElementById('output').innerHTML = html;
-}
-
-document.getElementById('ticker').addEventListener('keydown',e=>{if(e.key==='Enter')runAnalysis();});
-</script>
+# Example Usage: Analyze Reliance Industries
+analyze_indian_stock("RELIANCE")
